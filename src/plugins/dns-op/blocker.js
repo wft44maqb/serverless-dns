@@ -6,6 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+import * as pres from "../plugin-response.js";
 import * as rdnsutil from "../rdns-util.js";
 import * as dnsutil from "../../commons/dnsutil.js";
 
@@ -14,6 +15,12 @@ export class DnsBlocker {
     this.log = log.withTags("DnsBlocker");
   }
 
+  /**
+   * @param {string} rxid
+   * @param {pres.RespData} req
+   * @param {pres.BlockstampInfo} blockInfo
+   * @returns {pres.RespData}
+   */
   blockQuestion(rxid, req, blockInfo) {
     const dnsPacket = req.dnsPacket;
     const stamps = req.stamps;
@@ -36,9 +43,15 @@ export class DnsBlocker {
     const domains = dnsutil.extractDomains(dnsPacket);
     const bres = this.block(domains, blockInfo, stamps);
 
-    return rdnsutil.copyOnlyBlockProperties(req, bres);
+    return pres.copyOnlyBlockProperties(req, bres);
   }
 
+  /**
+   * @param {string} rxid
+   * @param {pres.RespData} res
+   * @param {pres.BlockstampInfo} blockInfo
+   * @returns {pres.RespData}
+   */
   blockAnswer(rxid, res, blockInfo) {
     const dnsPacket = res.dnsPacket;
     const stamps = res.stamps;
@@ -67,11 +80,17 @@ export class DnsBlocker {
     const domains = dnsutil.extractDomains(dnsPacket);
     const bres = this.block(domains, blockInfo, stamps);
 
-    return rdnsutil.copyOnlyBlockProperties(res, bres);
+    return pres.copyOnlyBlockProperties(res, bres);
   }
 
+  /**
+   * @param {string[]} names
+   * @param {pres.BlockstampInfo} blockInfo
+   * @param {pres.BStamp} blockstamps
+   * @returns {pres.RespData}
+   */
   block(names, blockInfo, blockstamps) {
-    let r = rdnsutil.rdnsNoBlockResponse();
+    let r = pres.rdnsNoBlockResponse();
     for (const n of names) {
       r = rdnsutil.doBlock(n, blockInfo, blockstamps);
       if (r.isBlocked) break;

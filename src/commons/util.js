@@ -13,7 +13,8 @@
 // musn't import any non-std modules
 
 export function fromBrowser(ua) {
-  return ua && ua.startsWith("Mozilla/5.0");
+  if (emptyString(ua)) return false;
+  return ua.startsWith("Mozilla/5.0") || ua.startsWith("dohjs/");
 }
 
 export function jsonHeaders() {
@@ -117,7 +118,13 @@ export function objOf(map) {
   return map.entries ? Object.fromEntries(map) : {};
 }
 
-export function timedOp(op, ms, cleanup = () => {}) {
+/**
+ * @param {(function((out, err) => void))} op
+ * @param {int} ms
+ * @param {function(any)} cleanup
+ * @returns {Promise}
+ */
+export function timedOp(op, ms, cleanup = (x) => {}) {
   return new Promise((resolve, reject) => {
     let timedout = false;
     const tid = timeout(ms, () => {
@@ -135,12 +142,14 @@ export function timedOp(op, ms, cleanup = () => {}) {
         clearTimeout(tid);
 
         if (ex) {
+          cleanup(out);
           reject(ex);
         } else {
           resolve(out);
         }
       });
     } catch (e) {
+      clearTimeout(tid);
       if (!timedout) reject(e);
     }
   });
@@ -179,15 +188,38 @@ export function timedSafeAsyncOp(promisedOp, ms, defaultOp) {
         }
       })
       .catch((ignored) => {
+        clearTimeout(tid);
         if (!timedout) deferredOp();
         // else: handled by timeout
       });
   });
 }
 
-export function timeout(ms, callback) {
-  if (typeof callback !== "function") return -1;
-  return setTimeout(callback, ms);
+export function timeout(ms, fn) {
+  if (typeof fn !== "function") return -1;
+  const timer = setTimeout(fn, ms);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}
+
+export function repeat(ms, fn) {
+  if (typeof fn !== "function") return -1;
+
+  next(fn);
+
+  const timer = setInterval(fn, ms);
+  if (typeof timer.unref === "function") timer.unref();
+
+  return timer;
+}
+
+export function next(...fns) {
+  for (const fn of fns) {
+    if (typeof fn === "function") {
+      if (typeof setImmediate === "function") setImmediate(fn);
+      else timeout(0, fn);
+    }
+  }
 }
 
 // min inclusive, max exclusive
@@ -200,15 +232,29 @@ export function rolldice(sides = 6) {
 }
 
 // stackoverflow.com/a/8084248
-export function uid() {
+export function uid(prefix = "") {
   // ex: ".ww8ja208it"
-  return (Math.random() + 1).toString(36).slice(1);
+  return prefix + (Math.random() + 1).toString(36).slice(1);
 }
 
 export function xid() {
   const hi = vmid();
   const lo = uid();
+  // ex: "m3c52dyhqz.ww8ja208it"
   return hi + lo;
+}
+
+export function uidFromXidOrRxid(id) {
+  if (emptyString(id)) return "";
+
+  const uidStartChar = id.lastIndexOf(".");
+  const rxidEndChar = id.lastIndexOf("]");
+  const p = uidStartChar;
+  const q = rxidEndChar < 0 ? id.length : rxidEndChar;
+
+  if (p < 0 || p >= id.length - 1 || q <= p) return "";
+
+  return id.slice(p + 1, q);
 }
 
 // on Workers, random number can only be generated in a "network-context"
@@ -217,55 +263,6 @@ let _vmid = "0";
 export function vmid() {
   if (_vmid === "0") _vmid = uid().slice(1);
   return _vmid;
-}
-
-// TODO: could be replaced with scheduler.wait
-// developers.cloudflare.com/workers/platform/changelog#2021-12-10
-// queues fn in a macro-task queue of the event-loop
-// exec order: github.com/nodejs/node/issues/22257
-export function taskBox(fn) {
-  timeout(/* with 0ms delay*/ 0, () => safeBox(fn));
-}
-
-// queues fn in a micro-task queue
-// ref: MDN: Web/API/HTML_DOM_API/Microtask_guide/In_depth
-// queue-task polyfill: stackoverflow.com/a/61605098
-const taskboxPromise = { p: Promise.resolve() };
-export function microtaskBox(fns, arg) {
-  let enqueue = null;
-  if (typeof queueMicrotask === "function") {
-    enqueue = queueMicrotask;
-  } else {
-    enqueue = taskboxPromise.p.then.bind(taskboxPromise.p);
-  }
-
-  enqueue(() => safeBox(fns, arg));
-}
-
-// TODO: safeBox for async fns with r.push(await f())?
-export function safeBox(fns, arg) {
-  if (typeof fns === "function") {
-    fns = [fns];
-  }
-
-  const r = [];
-  if (!isIterable(fns)) {
-    return r;
-  }
-
-  for (const f of fns) {
-    if (typeof f !== "function") {
-      r.push(null);
-      continue;
-    }
-    try {
-      r.push(f(arg));
-    } catch (ignore) {
-      r.push(null);
-    }
-  }
-
-  return r;
 }
 
 export function isDohGetRequest(queryString) {
@@ -283,27 +280,33 @@ export function isDnsMsg(req) {
   );
 }
 
-export function emptyResponse() {
-  return {
-    isException: false,
-    exceptionStack: "",
-    exceptionFrom: "",
-    data: {},
-  };
-}
-
-export function errResponse(id, err) {
-  const st = emptyObj(err) || !err.stack ? "no-stacktrace" : err.stack;
-  return {
-    isException: true,
-    exceptionStack: st,
-    exceptionFrom: id,
-    data: {},
-  };
-}
-
 export function mapOf(obj) {
   return new Map(Object.entries(obj));
+}
+
+export function isAlphaNumeric(str) {
+  return /^[a-z0-9]+$/i.test(str);
+}
+
+export function isDNSName(str) {
+  return /^[a-z0-9\.-]+$/i.test(str);
+}
+
+export function strstr(str, start = 0, end = str.length) {
+  if (emptyString(str)) return str;
+  if (start >= str.length) return "";
+  if (end <= start) return "";
+
+  start = start < 0 ? 0 : start;
+  end = end > str.length ? str.length : end;
+
+  return str.slice(start, end);
+}
+
+export function emptySet(s) {
+  if (!s) return true;
+  if (s instanceof Set) return s.size <= 0;
+  return true;
 }
 
 export function emptyString(str) {
@@ -320,6 +323,7 @@ export function emptyArray(a) {
   if (!a) return true;
   // obj v arr: stackoverflow.com/a/2462810
   if (typeof a !== "object") return false;
+  if (!a.hasOwnProperty("length")) return false;
   // len(a) === 0 is empty
   return a.length <= 0;
 }
@@ -345,7 +349,7 @@ export function emptyMap(m) {
 }
 
 // stackoverflow.com/a/32538867
-function isIterable(obj) {
+export function isIterable(obj) {
   if (obj == null) return false;
 
   return typeof obj[Symbol.iterator] === "function";
@@ -362,6 +366,14 @@ export function respond400() {
   return new Response(null, {
     status: 400,
     statusText: "Bad Request",
+    headers: dohHeaders(),
+  });
+}
+
+export function respond401() {
+  return new Response(null, {
+    status: 401,
+    statusText: "Authorization Required",
     headers: dohHeaders(),
   });
 }
@@ -402,6 +414,27 @@ export function isGetRequest(req) {
   return req && !emptyString(req.method) && req.method.toUpperCase() === "GET";
 }
 
+export function fromPath(strurl, re) {
+  const empty = "";
+  if (emptyString(strurl)) return empty;
+  if (!(re instanceof RegExp)) {
+    throw new Error(`invalid arg: ${re} must be RegExp`);
+  }
+
+  const u = new URL(strurl);
+  // ex: x.tld/1:a/b/l:c/ => ["", "1:a", "b", "l:c", ""]
+  const p = u.pathname.split("/");
+  for (const x of p) {
+    // returns ["1:"] if the x matches the regex
+    const m = x.match(re);
+    if (m != null && m.length > 0) {
+      // return the string after the prefix
+      return strstr(x, m[0].length);
+    }
+  }
+  return empty;
+}
+
 export function isGatewayRequest(req) {
   if (!req || emptyString(req.url)) return false;
 
@@ -421,6 +454,65 @@ export function isGatewayQuery(p) {
   return p === "gateway";
 }
 
+function isNumeric4(str) {
+  return /^[0-9.]+$/.test(str);
+}
+
+function isHex6(str) {
+  // ipv4-in-ipv6 addrs may have . in them
+  return /^[a-f0-9:.]+$/i.test(str);
+}
+
+function maybeIP6(str) {
+  return !emptyString(str) && str.split(":").length > 3 && isHex6(str);
+}
+
+function maybeIP4(str) {
+  return !emptyString(str) && str.split(".").length === 4 && isNumeric4(str);
+}
+
+// poorman's ip validation, don't rely for serious stuff
+export function maybeIP(str) {
+  return maybeIP4(str) || maybeIP6(str);
+}
+
+export function* domains(urlOrHost) {
+  if (emptyString(urlOrHost)) return "";
+
+  let hostname = urlOrHost;
+  if (urlOrHost.indexOf(":") > -1 || urlOrHost.indexOf("/") > -1) {
+    const u = new URL(urlOrHost);
+    hostname = u.hostname;
+  }
+
+  const d = hostname.split(".");
+  for (let i = 0; i < d.length; i++) {
+    yield d.slice(i).join(".");
+  }
+}
+
+export function tld(urlstr, upto = 2, d = ".") {
+  if (emptyString(urlstr)) return "";
+  // convert a domain-name of form x.y.tld to url http://x.y.tld
+  if (!urlstr.includes("://")) urlstr = "http://" + urlstr;
+
+  const u = new URL(urlstr);
+  // todo: fails for domains like "gov.uk", "co.in" etc
+  // see: publicsuffix.org/list/public_suffix_list.dat
+  return u.hostname.split(".").slice(-upto).join(d);
+}
+
+export function bounds(n, min, max) {
+  if (min > max) {
+    const t = max;
+    max = min;
+    min = t;
+  }
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
 export function mkFetchEvent(r, ...fns) {
   if (emptyObj(r)) throw new Error("missing request");
   for (const f of fns) {
@@ -428,6 +520,7 @@ export function mkFetchEvent(r, ...fns) {
   }
   // developer.mozilla.org/en-US/docs/Web/API/FetchEvent
   // developers.cloudflare.com/workers/runtime-apis/fetch-event
+  // deno.land/manual/runtime/http_server_apis#http-requests-and-responses
   // a service-worker event, with properties: type and request; and methods:
   // respondWith(Response), waitUntil(Promise), passThroughOnException(void)
   return {
@@ -441,6 +534,12 @@ export function mkFetchEvent(r, ...fns) {
 
 export function stub(...args) {
   return (...args) => {
+    /* no-op */
+  };
+}
+
+export function stubAsync(...args) {
+  return async (...args) => {
     /* no-op */
   };
 }

@@ -1,8 +1,9 @@
-import { config as dotEnvConfig } from "dotenv";
+// deno-lint-ignore-file no-var
 import * as system from "../../system.js";
 import * as blocklists from "./blocklists.ts";
-import { services } from "../svc.js";
-import Log from "../log.js";
+import * as dbip from "./dbip.ts";
+import { services, stopAfter } from "../svc.js";
+import Log, { LogLevels } from "../log.js";
 import EnvManager from "../env.js";
 
 // In global scope.
@@ -10,11 +11,9 @@ declare global {
   // TypeScript must know type of every var / property. Extend Window
   // (globalThis) with declaration merging (archive.is/YUWh2) to define types
   // Ref: www.typescriptlang.org/docs/handbook/declaration-merging.html
-  interface Window {
-    envManager?: EnvManager;
-    log?: Log;
-    env?: any;
-  }
+  var envManager: EnvManager | null;
+  var log: Log | null;
+  var env: any | null;
 }
 
 ((main) => {
@@ -22,26 +21,18 @@ declare global {
   system.when("steady").then(up);
 })();
 
-async function prep() {
+function prep() {
   // if this file execs... assume we're on deno.
   if (!Deno) throw new Error("failed loading deno-specific config");
-
-  // Load env variables from .env file to Deno.env (if file exists)
-  try {
-    dotEnvConfig({ export: true });
-  } catch (e) {
-    // throws without --allow-read flag
-    console.warn(".env missing => ", e.name, e.message);
-  }
 
   const isProd = Deno.env.get("DENO_ENV") === "production";
   const onDenoDeploy = Deno.env.get("CLOUD_PLATFORM") === "deno-deploy";
   const profiling = Deno.env.get("PROFILE_DNS_RESOLVES") === "true";
 
-  window.envManager = new EnvManager();
+  globalThis.envManager = new EnvManager();
 
-  window.log = new Log({
-    level: window.envManager.get("LOG_LEVEL") as string,
+  globalThis.log = new Log({
+    level: globalThis.envManager.get("LOG_LEVEL") as LogLevels,
     levelize: isProd || profiling, // levelize if prod or profiling
     withTimestamps: !onDenoDeploy, // do not log ts on deno-deploy
   });
@@ -62,6 +53,21 @@ async function up() {
   } else {
     console.warn("Config", "blocklists unavailable / disabled");
   }
+  const lp = services.logPusher;
+  if (lp != null) {
+    try {
+      await dbip.setup(lp);
+    } catch (ex) {
+      console.error("Config", "dbip setup failed", ex);
+    }
+  } else {
+    console.warn("Config", "logpusher unavailable");
+  }
+
+  // docs.deno.com/runtime/tutorials/os_signals
+  Deno.addSignalListener("SIGINT", () => {
+    stopAfter();
+  });
 
   // signal all system are-a go
   system.pub("go");

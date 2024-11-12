@@ -5,10 +5,55 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-import { Buffer } from "buffer";
+import { Buffer } from "node:buffer";
 import * as util from "./util.js";
 
-const ZERO = new Uint8Array(0);
+export const ZERO = new Uint8Array();
+const ZEROSTR = "";
+export const ZEROAB = new ArrayBuffer();
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+export function fromStr(s) {
+  if (util.emptyString(s)) return ZERO;
+  return encoder.encode(s);
+}
+
+export function toStr(b) {
+  if (emptyBuf(b)) return ZEROSTR;
+  return decoder.decode(b);
+}
+
+export function fromB64(b64std) {
+  if (util.emptyString(b64std)) return ZERO;
+  return Buffer.from(b64std, "base64");
+}
+
+export function toB64(buf) {
+  if (emptyBuf(buf)) return ZEROSTR;
+  if (buf instanceof Buffer) return buf.toString("base64");
+  const u8 = normalize8(buf);
+  return Buffer.of(u8).toString("base64");
+}
+
+export function hex(b) {
+  if (emptyBuf(b)) return ZEROSTR;
+  // avoids slicing Buffer (normalize8) to get hex
+  if (b instanceof Buffer) return b.toString("hex");
+  const ab = normalize8(b);
+  return Array.prototype.map
+    .call(new Uint8Array(ab), (b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * @param { Buffer | Uint8Array | ArrayBuffer } b
+ * @returns {number}
+ */
+export function len(b) {
+  if (emptyBuf(b)) return 0;
+  return b.byteLength;
+}
 
 export function bytesToBase64Url(b) {
   return btoa(String.fromCharCode(...new Uint8Array(b)))
@@ -81,7 +126,7 @@ export function raw(b) {
 // normalize8 returns the underlying buffer if any, as Uint8Array
 // b is either an ArrayBuffer, a TypedArray, or a node:Buffer
 export function normalize8(b) {
-  if (emptyBuf(b)) return null;
+  if (emptyBuf(b)) return ZERO;
 
   let underlyingBuffer = null;
   // ... has byteLength property, b must be of type ArrayBuffer;
@@ -96,10 +141,13 @@ export function normalize8(b) {
   return new Uint8Array(underlyingBuffer);
 }
 
-// stackoverflow.com/a/31394257
+/**
+ * @param {Uint8Array|Buffer} buf
+ * @returns {ArrayBuffer}
+ */
 export function arrayBufferOf(buf) {
   // buf is either TypedArray or node:Buffer
-  if (emptyBuf(buf)) return null;
+  if (emptyBuf(buf)) return ZEROAB;
 
   const offset = buf.byteOffset;
   const len = buf.byteLength;
@@ -109,22 +157,31 @@ export function arrayBufferOf(buf) {
   // ref: nodejs.org/api/buffer.html#buffers-and-typedarrays.
   // what we want to return is an array-buffer after copying
   // the relevant contents from the the underlying-buffer.
+  // stackoverflow.com/a/31394257
   return buf.buffer.slice(offset, offset + len);
 }
 
 // stackoverflow.com/a/17064149
 export function bufferOf(arrayBuf) {
-  if (emptyBuf(arrayBuf)) return null;
+  if (emptyBuf(arrayBuf)) return ZERO;
   if (arrayBuf instanceof Uint8Array) return arrayBuf;
 
   return Buffer.from(new Uint8Array(arrayBuf));
 }
 
+/**
+ * @param {Buffer} b
+ * @returns {int}
+ */
 export function recycleBuffer(b) {
   b.fill(0);
   return 0;
 }
 
+/**
+ * @param {int} size
+ * @returns {Buffer}
+ */
 export function createBuffer(size) {
   return Buffer.allocUnsafe(size);
 }

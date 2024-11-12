@@ -1,6 +1,6 @@
 #### It's a bird, it's a plane, it's... a self-hosted, pi-hole esque, DNS resolver
 
-_serverless-dns_ is a Pi-Hole esque [content-blocking](https://github.com/serverless-dns/blocklists), serverless, stub DNS-over-HTTPS (DoH) and DNS-over-TLS (DoT) resolver. Runs out-of-the-box on [Cloudflare Workers](https://workers.dev), [Deno Deploy](https://deno.com/deploy), and [Fly.io](https://fly.io/). Free tiers of all these services should be enough to cover 10 to 20 devices worth of DNS traffic per month.
+_serverless-dns_ is a Pi-Hole esque [content-blocking](https://github.com/serverless-dns/blocklists), serverless, stub DNS-over-HTTPS (DoH) and DNS-over-TLS (DoT) resolver. Runs out-of-the-box on [Cloudflare Workers](https://workers.dev), [Deno Deploy](https://deno.com/deploy), [Fastly Compute@Edge](https://www.fastly.com/products/edge-compute), and [Fly.io](https://fly.io/). Free tiers of all these services should be enough to cover 10 to 20 devices worth of DNS traffic per month.
 
 ### The RethinkDNS resolver
 
@@ -8,11 +8,18 @@ RethinkDNS runs `serverless-dns` in production at these endpoints:
 
 | Cloud platform     | Server locations | Protocol    | Domain                    | Usage                                   |
 |--------------------|------------------|-------------|---------------------------|-----------------------------------------|
-| ⛅ Cloudflare Workers | 200+ ([ping](https://check-host.net/check-ping?host=https://sky.rethinkdns.com))        | DoH         | `sky.rethinkdns.com`    | [configure](https://rethinkdns.com/configure?p=doh)  |
-| 🦕 Deno Deploy        | 30+ ([ping](https://check-host.net/check-ping?host=https://deno.dev))                     | DoH         | _private beta_            |                                         |
+| ⛅ Cloudflare Workers | 280+ ([ping](https://check-host.net/check-ping?host=https://sky.rethinkdns.com))           | DoH         | `sky.rethinkdns.com`    | [configure](https://rethinkdns.com/configure?p=doh)  |
+| 🦕 Deno Deploy        | 30+ ([ping](https://check-host.net/check-ping?host=https://deno.dev))                      | DoH         | _private beta_          |                                         |
+| ⏱️ Fastly Compute@Edge   | 80+ ([ping](https://check-host.net/check-ping?host=https://serverless-dns.edgecompute.app))| DoH         | _private beta_          |                                      |
 | 🪂 Fly.io             | 30+ ([ping](https://check-host.net/check-ping?host=https://max.rethinkdns.com))           | DoH and DoT | `max.rethinkdns.com`      | [configure](https://rethinkdns.com/configure?p=dot)  |
 
 Server-side processing takes from 0 milliseconds (ms) to 2ms (median), and end-to-end latency (varies across regions and networks) is between 10ms to 30ms (median).
+
+[<img src="https://fossunited.org/files/fossunited-white.svg"
+     alt="FOSS United"
+     height="40">](https://fossunited.org/grants)&emsp;
+
+The *Rethink DNS* resolver on Fly.io is sponsored by [FOSS United](https://fossunited.org/grants).
 
 ### Self-host
 
@@ -20,12 +27,15 @@ Cloudflare Workers is the easiest platform to setup `serverless-dns`:
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/serverless-dns/serverless-dns)
 
+[![Deploy to Fastly](https://deploy.edgecompute.app/button)](https://deploy.edgecompute.app/deploy)
+
 For step-by-step instructions, refer:
 
 | Platform       | Difficulty | Runtime                                | Doc                                                                                     |
 | ---------------| ---------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
 | ⛅ Cloudflare  | Easy       | [v8](https://v8.dev) _Isolates_        | [Hosting on Cloudflare Workers](https://docs.rethinkdns.com/dns/open-source#cloudflare) |
 | 🦕 Deno.com    | Moderate   | [Deno](https://deno.land) _Isolates_   | [Hosting on Deno.com](https://docs.rethinkdns.com/dns/open-source#deno-deploy)          |
+| ⏱️ Fastly Compute@Edge | Easy  | [Fastly JS](https://js-compute-reference-docs.edgecompute.app/)| [Hosting on Fastly Compute@Edge](https://docs.rethinkdns.com/dns/open-source#fastly) |
 | 🪂 Fly.io      | Hard       | [Node](https://nodejs.org) _MicroVM_   | [Hosting on Fly.io](https://docs.rethinkdns.com/dns/open-source#fly-io)                 |
 
 To setup blocklists, visit `https://<my-domain>.tld/configure` from your browser (it should load something similar to [RethinkDNS' _configure_ page](https://rethinkdns.com/configure)).
@@ -35,6 +45,7 @@ For help or assistance, feel free to [open an issue](https://github.com/celzero/
 ---
 
 ### Development
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/serverless-dns/serverless-dns/badge)](https://securityscorecards.dev/viewer/?uri=github.com/serverless-dns/serverless-dns)
 
 #### Setup
 
@@ -52,7 +63,7 @@ cd ./serverless-dns
 
 Node:
 ```bash
-# install node v16+ via nvm, if required
+# install node v22+ via nvm, if required
 # https://github.com/nvm-sh/nvm#installing-and-updating
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 nvm install --lts
@@ -72,12 +83,22 @@ npm update
 
 Deno:
 ```bash
-# install deno.land v1.18+
+# install deno.land v2+
 # https://github.com/denoland/deno/#install
 curl -fsSL https://deno.land/install.sh | sh
 
 # run serverless-dns on deno
 ./run d
+```
+
+Fastly:
+```bash
+# install node v22+ via nvm, if required
+# install the Fastly CLI
+# https://developer.fastly.com/learning/tools/cli
+
+# run serverless-dns on Fastly Compute@Edge
+./run f
 ```
 
 Wrangler:
@@ -107,11 +128,74 @@ Pull requests are also checked for code style violations and fixed automatically
 
 Configure [`env.js`](src/core/env.js) if you need to tweak the defaults.
 For Cloudflare Workers, setup env vars in [`wrangler.toml`](wrangler.toml), instead.
+For Fastly Compute@Edge, setup env vars in [`fastly.toml`](fastly.toml), instead.
 
 #### Request flow
 
 1. The request/response flow: client <-> `src/server-[node|workers|deno]` <-> [`doh.js`](src/core/doh.js) <-> [`plugin.js`](src/core/plugin.js)
 2. The `plugin.js` flow: `user-op.js` -> `cache-resolver.js` -> `cc.js` -> `resolver.js`
+
+#### Auth
+
+serverless-dns supports authentication with an *alpha-numeric* bearer token for both DoH and DoT. For a token, `msg-key` (secret), append the output of `hex(hmac-sha256(msg-key|domain.tld), msg)` to `ACCESS_KEYS` env var in csv format. Note: `msg` is currently fixed to `sdns-public-auth-info`.
+
+1. DoH: place the `msg-key` at the end of the blockstamp, like so:
+`1:1:4AIggAABEGAgAA:<msg-key>` (here, `1` is the version, `1:4AIggAABEGAgAA`
+is the blockstamp, `<msg-key>` is the auth secret, and `:` is the delimiter).
+2. DoT: place the `msg-key` at the end of the SNI (domain-name) containing the blockstamp:
+`1-4abcbaaaaeigaiaa-<msg-key>` (here `1` is the version, `4abcbaaaaeigaiaa`
+is the blockstamp, `<msg-key>` is the auth secret, and `-` is the delimeter).
+
+If the intention is to use auth with DoT too, keep `msg-key` shorter (8 to 24 chars), since subdomains may only be 63 chars long in total.
+
+You can generate the access keys for your fork from `max.rethinkdns.com`, like so:
+```bash
+msgkey="ShortAlphanumericSecret"
+domain="my-serverless-dns-domain.tld"
+curl 'https://max.rethinkdns.com/genaccesskey?key='"$msgkey"'&dom='"$domain"
+# output
+# {"accesskey":["my-serverless-dns-domain.tld|deadbeefd3adb33fa2bb33fd3eadf084beef3b152beefdead49bbb2b33fdead83d3adbeefdeadb33f"],"context":"sdns-public-auth-info"}
+```
+
+#### Logs and Analytics
+
+serverless-dns can be setup to upload logs via Cloudflare *Logpush*.
+
+0. Setup a *Logpush* job:
+    ```bash
+    CF_ACCOUNT_ID=<hex-cloudflare-account-id>
+    CF_API_KEY=<api-key-with-logs-edit-permission-at-account-level>
+    R2_BUCKET=<r2-bucket-name>
+    R2_ACCESS_KEY=<r2-access-key-for-the-bucket>
+    R2_SECRET_KEY=<r2-secret-key-with-read-write-permissions>
+    # optional, setup a filter such that only logs form this worker ends up being pushed; but if you
+    # do not need a filter on Worker name (script-name), edit the "filter" field below accordingly.
+    SCRIPT_NAME=<name-of-the-worker-as-in-wrangler-toml>
+    # for more options, ref: developers.cloudflare.com/logs/get-started/api-configuration
+    # Logpush API with cURL: developers.cloudflare.com/logs/tutorials/examples/example-logpush-curl
+    # Available Logpull fields: developers.cloudflare.com/logs/reference/log-fields/account/workers_trace_events
+    curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/logpush/jobs" \
+        -H "Authorization: Bearer ${CF_API_KEY}" \
+        -H 'Content-Type: application/json' \
+        -d '{
+            "name": "dns-logpush",
+            "logpull_options": "fields=EventTimestampMs,Outcome,Logs,ScriptName&timestamps=rfc3339",
+            "destination_conf": "r2://'"$R2_BUCKET"'/{DATE}?access-key-id='"${R2_ACCESS_KEY}"'&secret-access-key='"${R2_SECRET_KEY}"'&account-id='"{$CF_ACCOUNT_ID}"',
+            "dataset": "workers_trace_events",
+            "filter": "{\"where\":{\"and\":[{\"key\":\"ScriptName\",\"operator\":\"contains\",\"value\":\"'"${SCRIPT_NAME}"'\"},{\"key\":\"Outcome\",\"operator\":\"eq\",\"value\":\"ok\"}]}}",
+            "enabled": true,
+            "frequency": "low"
+        }'
+    ```
+1. Set `wrangler.toml` property `logpush = true`, which enables *Logpush*.
+2. (Optional) env var `LOG_LEVEL = "logpush"`, which raises the log-level such that only *request* and error logs are emitted.
+3. (Optional) Set env var `LOGPUSH_SRC = "csv,of,subdomains"`, which makes [`log-pusher.js`](./src/plugins/observability/log-pusher.js) emit *request* logs only if Workers `hostname` contains one of the subdomains.
+
+Logs published to R2 can be retrieved either using [R2 Workers](https://developers.cloudflare.com/r2/data-access/workers-api/workers-api-usage), the [R2 API](https://developers.cloudflare.com/r2/data-access/s3-api/api), or the [Logpush API](https://developers.cloudflare.com/logs/r2-log-retrieval).
+
+Workers Analytics, if enabled, is pushed against a log-key, `lid`, which if unspecified is set to hostname of the serverless deployment with periods, `.`, replaced with underscores, `_`. Auth must be setup when querying for Analytics via the API which returns a json; ex: `https://max.rethinkdns.com/1:<optional-stamp>:<msg-key>/analytics?t=<time-interval-in-mins>&f=<field-name>`. Possible `fields` are `ip` (client ip), `qname` (dns query name), `region` (resolver region), `qtype` (dns query type), `dom` (top-level domains), `ansip` (dns answer ips), and `cc` (ans ip country codes).
+
+Log capture and analytics isn't yet implemented for Fly and Deno Deploy.
 
 ----
 
@@ -125,7 +209,7 @@ On Node, the default DNS upstream is `1.1.1.2` ([ref](https://github.com/serverl
 
 The entrypoints for Node and Deno are [`src/server-node.js`](src/server-node.js), [`src/server-deno.ts`](src/server-deno.ts) respectively,
 and both listen for TCP-over-TLS, HTTP/S connections; whereas, the entrypoint for Cloudflare Workers, which only listens over HTTP (cli) or
-over HTTP/S (prod), is [`src/server-workers.js`](src/server-workers.js).
+over HTTP/S (prod), is [`src/server-workers.js`](src/server-workers.js); and for Fastly its [`src/server-fastly.js`](src/server-fastly.js).
 
 Local (non-prod) setups on Node, `key` (private) and `cert` (public chain) files, by default, are read from
 paths defined in env vars, `TLS_KEY_PATH` and `TLS_CRT_PATH`.
@@ -151,8 +235,8 @@ in-process lfu caches. To disable caching altogether on all three platfroms, set
 
 #### Cloud
 
-Cloudflare Workers and Deno Deploy are ephemeral, as in, the "process" that serves client requests is not long-lived,
-and in fact, two back-to-back requests may be served by two different [_isolates_](https://developers.cloudflare.com/workers/learning/how-workers-works) ("processes"). Resolver on Fly.io, running Node, is backed by [persistent VMs](https://fly.io/blog/docker-without-docker/) and is hence longer-lived,
+Cloudflare Workers, and Deno Deploy are ephemeral, as in, the "process" that serves client requests is not long-lived,
+and in fact, two back-to-back requests may be served by two different [_isolates_](https://developers.cloudflare.com/workers/learning/how-workers-works) ("processes"). Fastly Compute@Edge is the also ephemeral but does not use isolates, instead Fastly creates and destroys a [wasmtime](https://wasmtime.dev/) sandbox for each request. Resolver on Fly.io, running Node, is backed by [persistent VMs](https://fly.io/blog/docker-without-docker/) and is hence longer-lived,
 like traditional "serverfull" environments.
 
 For Deno Deploy, the code-base is bundled up in a single javascript file with `deno bundle` and then handed off
@@ -161,15 +245,23 @@ to Deno.com.
 Cloudflare Workers build-time and runtime configurations are defined in [`wrangler.toml`](wrangler.toml).
 [Webpack5 bundles the files](webpack.config.cjs) in an ESM module which is then uploaded to Cloudflare by _Wrangler_.
 
+Fastly Compute@Edge build-time and runtime configurations are defined in [`fastly.toml`](fastly.toml).
+[Webpack5 bundles the files](webpack.fastly.cjs) in an ESM module which is then compiled to WASM by `npx js-compute-runtime`
+and subsequently packaged and published to Fastly Compute@Edge with the _Fastly CLI_.
+
 For Fly.io, which runs Node, the runtime directives are defined in [`fly.toml`](fly.toml) (used by `dev` and `live` deployment-types),
 while deploy directives are in [`node.Dockerfile`](node.Dockerfile). [`flyctl`](https://fly.io/docs/flyctl) accordingly sets
 up `serverless-dns` on Fly.io's infrastructure.
 
-```
+```bash
 # build and deploy for cloudflare workers.dev
 npm run build
 # usually, env-name is prod
 npx wrangler publish [-e <env-name>]
+
+# bundle, build, and deploy for fastly compute@edge
+# developer.fastly.com/reference/cli/compute/publish
+fastly compute publish
 
 # build and deploy to fly.io
 npm run build:fly
@@ -192,4 +284,4 @@ if possible [see](https://github.com/serverless-dns/blocklists/issues/19)), and 
 required to setup the radix-trie during runtime bring-up or, downloads them [lazily](https://github.com/serverless-dns/serverless-dns/blob/02f9e5bf/src/plugins/dns-op/resolver.js#L167),
 when serving a DNS request.
 
-`serverless-dns` compiles around ~11M entries (as of Nov 2022) from around 190+ blocklists. These are defined in the [serverless-dns/blocklists](https://github.com/serverless-dns/blocklists) repository.
+`serverless-dns` compiles around ~13M entries (as of Jan 2023) from around 190+ blocklists. These are defined in the [serverless-dns/blocklists](https://github.com/serverless-dns/blocklists) repository.

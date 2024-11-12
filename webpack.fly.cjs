@@ -2,7 +2,7 @@ const webpack = require("webpack");
 
 module.exports = {
   entry: "./src/server-node.js",
-  target: ["node", "es2020"],
+  target: ["node22", "es2022"],
   mode: "production",
   // enable devtool in development
   // devtool: 'eval-cheap-module-source-map',
@@ -17,6 +17,12 @@ module.exports = {
     }),
   ],
 
+  /* externalsType: 'module',
+  externals: {
+    '@riaskov/mmap-io': '@riaskov/mmap-io',
+  },*/
+  externals: /@riaskov/,
+
   optimization: {
     usedExports: true,
     minimize: false,
@@ -25,6 +31,16 @@ module.exports = {
   experiments: {
     outputModule: true,
   },
+
+  // github.com/webpack/webpack/issues/14072
+  // see also: src/core/node/config.js
+  /* node: {
+    global: true,
+    __filename: true,
+    __dirname: true,
+  },*/
+
+  // require missing: github.com/webpack/webpack/issues/16029
 
   // github.com/webpack/webpack/issues/13290
   // stackoverflow.com/a/68916455
@@ -37,7 +53,8 @@ module.exports = {
     module: true,
   },
 
-  /* or, cjs: stackoverflow.com/a/68916455
+  // or, cjs: stackoverflow.com/a/68916455
+  /*
   output: {
     filename: "fly.cjs",
     clean: true, // empty dist before output

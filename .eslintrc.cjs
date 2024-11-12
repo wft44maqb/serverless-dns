@@ -1,4 +1,5 @@
 module.exports = {
+  root: true,
   env: {
     // Which globals variables are allowed.
     es2021: true,
@@ -17,7 +18,19 @@ module.exports = {
     sourceType: "module",
   },
 
-  ignorePatterns: ["node_modules/", "dist/", "worker/", "test/data/cache/"],
+  ignorePatterns: [
+    "node_modules/",
+    "dist/",
+    "worker/",
+    "pkg/",
+    "test/data/cache/",
+
+    // Ignore all files, except JS files (which may be in a directory)
+    "*",
+    "!*/",
+    "!*.js",
+    "!*.[mc]js",
+  ],
 
   plugins: ["prettier"],
   rules: {
@@ -37,7 +50,26 @@ module.exports = {
     "valid-jsdoc": 0,
     "quotes": ["error", "double", { allowTemplateLiterals: true }],
     "no-unused-vars": "warn",
-    "new-cap": ["error", { "properties": false }],
+    "new-cap": ["error", { properties: false }],
+    "max-len": [
+      "error",
+      {
+        code: 120,
+        ignoreComments: true,
+        ignoreUrls: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+      },
+    ],
+    "generator-star-spacing": [
+      "error",
+      {
+        before: false,
+        after: true, // function* () {}
+        anonymous: "neither", // function*() {}
+        method: { before: false, after: false }, // { *gen() {} }
+      },
+    ],
 
     // Enforces rules from .prettierrc file.
     // These should be fixed automatically with formatting.

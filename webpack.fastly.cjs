@@ -1,11 +1,9 @@
 const webpack = require("webpack");
 const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 
-// developers.cloudflare.com/workers/cli-wrangler/configuration#modules
-// archive.is/FDky9
 module.exports = {
-  entry: "./src/server-workers.js",
-  target: ["webworker", "es2022"],
+  entry: "./src/server-fastly.js",
+  target: ["webworker", "es2020"],
   mode: "production",
   // enable devtool in development
   // devtool: 'eval-cheap-module-source-map',
@@ -19,12 +17,6 @@ module.exports = {
   },
 
   plugins: [
-    // remove "node:" prefix from imports as target is webworker
-    // stackoverflow.com/a/73351738 and github.com/vercel/next.js/issues/28774
-    // github.com/Avansai/next-multilingual/blob/aaad6a7204/src/config/index.ts#L750
-    new webpack.NormalModuleReplacementPlugin(/node:/, (resource) => {
-      resource.request = resource.request.replace(/^node:/, "");
-    }),
     new webpack.ProvidePlugin({
       Buffer: ["buffer", "Buffer"],
     }),
@@ -51,7 +43,17 @@ module.exports = {
     library: {
       type: "module",
     },
-    filename: "worker.js",
+    filename: "fastly.js",
     module: true,
   },
+  externals: [
+    ({ request }, callback) => {
+      // Allow Webpack to handle fastly:* namespaced module imports by treating
+      // them as modules rather than try to process them as URLs
+      if (/^fastly:.*$/.test(request)) {
+        return callback(null, "commonjs " + request);
+      }
+      callback();
+    },
+  ],
 };
